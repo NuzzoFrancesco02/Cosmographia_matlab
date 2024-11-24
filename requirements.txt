@@ -1,0 +1,7 @@
+MATLAB R2020b or later
+Cosmographia (https://naif.jpl.nasa.gov/naif/cosmographia_components.html)
+MICE Toolkit for MATLAB (https://naif.jpl.nasa.gov/naif/toolkit_MATLAB.html)
+Time Constants Kernel (LSK): https://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/
+Planetary SPK Kernel: https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/
+Binary PCK Kernel: https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/
+File system access permissions
