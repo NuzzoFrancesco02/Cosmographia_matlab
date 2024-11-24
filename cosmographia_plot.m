@@ -100,6 +100,7 @@ function cosmographia_plot(mission_name, varargin)
     % Field check function 
     fields_check(varargin);
     
+    check_rep(varargin);
     % Loading bar setup
     h = waitbar(0, 'Initializing...', 'Name', 'Creating files...');
     total_steps = 7; % Total steps in the process
@@ -143,10 +144,15 @@ function cosmographia_plot(mission_name, varargin)
 
     % Pause for 0.2 seconds before moving to the next step
     pause(0.2)
-    
+    arc_flag = 0;
+    for j = 1 : length(varargin) - 1
+        if varargin{j}.id == varargin{j+1}.id
+            arc_flag = 1;
+        end
+    end
     % Step 2: Create LOAD files
     waitbar(1 / total_steps, h, 'Creating LOAD files...');
-    create_load(version, mission_name); % Function to create LOAD files
+    create_load(version, mission_name,arc_flag); % Function to create LOAD files
     pause(0.2)
 
     % Prepare list of required SPICE files (satellite trajectories)
@@ -288,6 +294,7 @@ function createCosmoscriptingScript(mission_name, str_centers, varargin)
             fprintf(fileID, ',');
         end
     end
+    
     fprintf(fileID, ']\n');
     
     % Set up Cosmographia display options
@@ -372,7 +379,7 @@ function create_spk(mission_name, varargin)
     cspice_furnsh(selected_file);
     
     % Change to the mission directory where the SPK files will be created
-    cd("../../" + mission_name)
+    cd("../../" + mission_name);
     
     % Loop through each trajectory to generate SPK files
     for j = 1 : length(varargin{1})
@@ -419,7 +426,7 @@ function create_spk(mission_name, varargin)
             disp('File closed.');
             
             % Wait for the system to synchronize the state
-            pause(1);
+            pause(0.2);
             sats = varargin{1};
             
             % Call a helper function (commented out) to process the SPK file
@@ -459,10 +466,10 @@ function try_bsp(j, varargin)
         [handle, descr, segid, found] = cspice_spksfs(varargin{1}.id, cover(1));
     
         % If no segment is found, display an error and clear kernels
-        if ~found
+        if ~found;
             cspice_kclear
             txt = sprintf('No SPK segment found for body %d', varargin{1}.id);
-            error(txt)
+            error(txt);
         end
     
         % Unpack the descriptor of the current segment
@@ -490,7 +497,39 @@ function try_bsp(j, varargin)
         error("Error while reading .bsp, usually solved by restarting a Matlab session")
     end
 end
-function create_load(version, mission_name)
+function create_load(version, mission_name,arc_flag)
+    if arc_flag 
+        % Change the current directory to the mission_name folder
+    cd(mission_name);
+
+    % Define the required files for the mission catalog
+    require = {'spice.json','spacecraft.json','spacecraft_arcs.json'};  % Required files for the mission
+
+    % Create a structure to hold information for the JSON
+    jsonStruct = struct( ...
+        'version', version, ...  % Mission version
+        'name', strcat(mission_name,' Catalog'), ...  % Name of the mission catalog
+        'require', {require}  ... % List of required files, passed as a cell array
+    );
+
+    % Encode the structure into a JSON format
+    jsonString = jsonencode(jsonStruct, 'PrettyPrint', true);  % Create a nicely formatted JSON string
+
+    % Open the 'load.json' file for writing
+    fid = fopen('load.json', 'w');
+    if fid == -1  % Check if there was an error opening the file
+        cd('..');  % Go back to the main folder
+        close all;  % Close any open figure windows
+        error('Impossible to open file for writing: %s','load.json');  % Show an error if the file cannot be opened
+    end
+
+    % Write the JSON string to the file
+    fwrite(fid, jsonString, 'char');
+    fclose(fid);  % Close the file
+
+    % Go back to the main folder after completing the operation
+    cd('..');
+    else
     % Change the current directory to the mission_name folder
     cd(mission_name);
 
@@ -521,6 +560,7 @@ function create_load(version, mission_name)
 
     % Go back to the main folder after completing the operation
     cd('..');
+    end
 end
 function create_spice(version, mission_name, require)
     % Change the current directory to the mission_name folder
@@ -565,7 +605,7 @@ function str_centers = create_spacecraft(version, mission_name, varargin)
 
     outputFile = 'spacecraft.json';
     % Create the base structure following the JSON template
-    spacecrafts = [];
+    spacecrafts = []; spacecrafts_arcs = [];
     
     % Load the leap seconds kernel to handle time properly
     cd('lsk');
@@ -576,67 +616,132 @@ function str_centers = create_spacecraft(version, mission_name, varargin)
     fade = int32(1);  % Set fade value (likely used for color coding)
     
     % Generate a color matrix based on the number of spacecraft
-    color = generateColorMatrix(length(varargin{1}), "parula");
-    str_centers = {};  % Initialize an empty cell array for storing spacecraft centers
-
-    for j = 1:length(varargin{1})  % Loop through each spacecraft
-        dt = datetime(varargin{1}{j}.dateStart);  % Convert start date to datetime object
+    sat_count = 1;
+    for j = 1 : length(varargin{1})-1
+        if varargin{1}{j}.id ~= varargin{1}{j+1}.id 
+            sat_count = sat_count + 1;
+        end
+    end
+    color = generateColorMatrix(sat_count, "parula");
+    str_centers = {}; % Initialize an empty cell array for storing spacecraft centers
+    j = 1; sat_count = 0;
+    while j <= length(varargin{1})  % Loop through each spacecraft
+        if j ~= length(varargin{1}) && varargin{1}{j}.id == varargin{1}{j+1}.id
+            sat_count = sat_count + 1;
+            arcs_name = varargin{1}{j}.name;
+            arcs_id = varargin{1}{j}.id; arcs_center = varargin{1}{j}.CENTER; endTimes = {};
+            i = j;
+            arcs_t = varargin{1}{j}.t;
+            dt = datetime(varargin{1}{j}.dateStart);  % Convert start date to datetime object
+            % Convert the start time into the required format (uppercase month)
+            startTime = upper(datestr(dt, 'yyyy-mm-dd HH:MM:SS.FFF UTC'));
+            while i ~= length(varargin{1}) && varargin{1}{i}.id == varargin{1}{i+1}.id
+                arcs_id = [arcs_id varargin{1}{j+1}.id];
+                arcs_center = [arcs_center varargin{1}{j+1}.CENTER];
+                et = cspice_str2et(startTime) + varargin{1}{i}.t(end);  % Add duration to start time
+                endTime = cspice_et2utc(et, 'C', 3);  % Convert ET to UTC
+                endTime = datetime(endTime, 'InputFormat', 'yyyy MMM dd HH:mm:ss.SSS');
+                endTimes = [endTimes datestr(endTime, 'yyyy-mm-dd HH:MM:SS.FFF UTC')];  % Format the end time
+                i = i + 1;
+            end
+            et = cspice_str2et(startTime) + varargin{1}{i}.t(end);  % Add duration to start time
+            endTime = cspice_et2utc(et, 'C', 3);  % Convert ET to UTC
+            endTime = datetime(endTime, 'InputFormat', 'yyyy MMM dd HH:mm:ss.SSS');
+            endTimes = [endTimes datestr(endTime, 'yyyy-mm-dd HH:MM:SS.FFF UTC')];  % Format the end time
         
-        % Convert the start time into the required format (uppercase month)
-        startTime = upper(datestr(dt, 'yyyy-mm-dd HH:MM:SS.FFF UTC'));
-        
-        % Convert start time to ephemeris time (ET) and calculate end time
-        et = cspice_str2et(startTime) + varargin{1}{j}.t(end);  % Add duration to start time
-        endTime = cspice_et2utc(et, 'C', 3);  % Convert ET to UTC
-        endTime = datetime(endTime, 'InputFormat', 'yyyy MMM dd HH:mm:ss.SSS');
-        endTime = datestr(endTime, 'yyyy-mm-dd HH:MM:SS.FFF UTC');  % Format the end time
-
-        % Calculate the mission duration
-        duration = find_duration(startTime, endTime);
-
-        % Create a spacecraft item based on the parameters
-        [struct_sc, str_center] = createSpacecraftItem(varargin{1}{j}, startTime, endTime, color(j,:)', duration, fade);
-
-        % Append the created spacecraft to the list
-        spacecrafts = [spacecrafts struct_sc];
-        str_centers = [str_centers, str_center];
+             j = i;
+             duration = find_duration(startTime, endTimes{end});
+             [struct_sc, str_center] = createSpacecraftItemArcs(arcs_name,arcs_id,arcs_center, startTime, endTimes, color(sat_count,:)', duration, fade);
+             spacecrafts_arcs = [spacecrafts_arcs struct_sc];
+             str_centers= [str_centers, str_center];
+        else
+            sat_count = sat_count + 1;
+            dt = datetime(varargin{1}{j}.dateStart);  % Convert start date to datetime object
+            
+            % Convert the start time into the required format (uppercase month)
+            startTime = upper(datestr(dt, 'yyyy-mm-dd HH:MM:SS.FFF UTC'));
+            
+            % Convert start time to ephemeris time (ET) and calculate end time
+            et = cspice_str2et(startTime) + varargin{1}{j}.t(end);  % Add duration to start time
+            endTime = cspice_et2utc(et, 'C', 3);  % Convert ET to UTC
+            endTime = datetime(endTime, 'InputFormat', 'yyyy MMM dd HH:mm:ss.SSS');
+            endTime = datestr(endTime, 'yyyy-mm-dd HH:MM:SS.FFF UTC');  % Format the end time
+    
+            % Calculate the mission duration
+            duration = find_duration(startTime, endTime);
+    
+            % Create a spacecraft item based on the parameters
+            [struct_sc, str_center] = createSpacecraftItem(varargin{1}{j}, startTime, endTime, color(sat_count,:)', duration, fade);
+    
+            % Append the created spacecraft to the list
+            spacecrafts = [spacecrafts struct_sc];
+            str_centers = [str_centers, str_center];
+        end
+        j = j + 1;
     end
 
     % Clear the SPICE kernels
     cspice_kclear;
+    if ~isempty(spacecrafts)
+        % Ensure spacecrafts is a cell array (in case there's only one spacecraft)
+        if numel(spacecrafts) == 1
+            spacecrafts = {spacecrafts};  % Force spacecrafts to be a cell array
+        end
+        
+        % Create the final JSON structure
+        jsonStruct = struct( ...
+            'version', version, ...
+            'name', strcat(mission_name, '_s/c'), ...  % Name for spacecraft catalog
+            'items', {spacecrafts} ...  % List of spacecraft
+        );
     
-    % Ensure spacecrafts is a cell array (in case there's only one spacecraft)
-    if numel(spacecrafts) == 1
-        spacecrafts = {spacecrafts};  % Force spacecrafts to be a cell array
-    end
-
-    % Create the final JSON structure
-    jsonStruct = struct( ...
-        'version', version, ...
-        'name', strcat(mission_name, '_s/c'), ...  % Name for spacecraft catalog
-        'items', {spacecrafts} ...  % List of spacecraft
-    );
-
-    % Encode the structure as a pretty-printed JSON string
-    jsonString = jsonencode(jsonStruct, 'PrettyPrint', true);
-
-    % Open the spacecraft.json file for writing
-    fid = fopen(outputFile, 'w');
-    if fid == -1  % If there's an error opening the file
+        % Encode the structure as a pretty-printed JSON string
+        jsonString = jsonencode(jsonStruct, 'PrettyPrint', true);
+    
+        % Open the spacecraft.json file for writing
+        fid = fopen(outputFile, 'w');
+        if fid == -1  % If there's an error opening the file
+            cd('..');
+            close all;
+            error('Unable to open file for writing: %s', outputFile);  % Show an error message
+        end
+    
+        % Write the JSON string to the file
+        fwrite(fid, jsonString, 'char');
+        fclose(fid);  % Close the file
+    
+        % Display a success message
+        disp(['JSON successfully saved to: ', outputFile]);
         cd('..');
-        close all;
-        error('Unable to open file for writing: %s', outputFile);  % Show an error message
     end
-
-    % Write the JSON string to the file
-    fwrite(fid, jsonString, 'char');
-    fclose(fid);  % Close the file
-
-    % Display a success message
-    disp(['JSON successfully saved to: ', outputFile]);
+    if ~isempty(spacecrafts_arcs)
+        if numel(spacecrafts_arcs) == 1
+            spacecrafts_arcs = {spacecrafts_arcs};  % Force spacecrafts to be a cell array
+        end
+        jsonStruct = struct( ...
+            'version', version, ...
+            'name', strcat(mission_name, '_s/c'), ...  % Name for spacecraft catalog
+            'items', {spacecrafts_arcs} ...  % List of spacecraft
+        );
     
-    % Change back to the previous directory
-    cd('..');
+        % Encode the structure as a pretty-printed JSON string
+        jsonString = jsonencode(jsonStruct, 'PrettyPrint', true);
+        outputFile = 'spacecraft_arcs.json';
+        % Open the spacecraft.json file for writing
+        fid = fopen(outputFile, 'w');
+        if fid == -1  % If there's an error opening the file
+            cd('..');
+            close all;
+            error('Unable to open file for writing: %s', outputFile);  % Show an error message
+        end
+    
+        % Write the JSON string to the file
+        fwrite(fid, jsonString, 'char');
+        fclose(fid);  % Close the file
+        disp(['JSON successfully saved to: ', outputFile]);
+        % Change back to the previous directory
+        cd('..');
+    end
 end
 
 function colorMatrix = generateColorMatrix(numColors, colormapName)
@@ -691,6 +796,72 @@ function dur = find_duration(tstart, tend)
     % Return the duration as a string
     dur = [num2str(dur), ' d'];
 end
+function arcs_flags = check_rep(varargin)
+arcs_flags = zeros(1,length(varargin{1}));
+    for j = 1 : length(varargin{1})
+        i = j + 1;
+        while i <= length(varargin{1})
+            arcs_flags(j) = 1;
+            i = i + 1;
+        end
+    end
+end
+function [spacecraftItem, center] = createSpacecraftItemArcs(arcs_name,arcs_id, arcs_center, startTimes, endTimes, color, duration, fade)
+    % createSpacecraftItem - Creates a spacecraft item for the JSON structure
+    %
+    % Input:
+    %   sat       - (struct) A structure containing spacecraft information
+    %   startTime - (string) The start time of the spacecraft's trajectory
+    %   endTime   - (string) The end time of the spacecraft's trajectory
+    %   color     - (array) RGB color for labeling and trajectory plotting
+    %   duration  - (string) Duration of the spacecraft's mission (in days)
+    %   fade      - (integer) Fade effect value for the trajectory plot
+    %
+    % Output:
+    %   spacecraftItem - (struct) The spacecraft item with all relevant properties
+    %   center         - (string) The center of the spacecraft's trajectory
+
+    % Get the center of the spacecraft from SPICE
+    
+    arcs = {};
+    for j = 1 : length(arcs_id)
+        [center, found] = cspice_bodc2n(arcs_center(j));  % Get center body name
+        if ~found
+            error('Center not found');
+        end
+        
+        % Convert center to lowercase and capitalize the first letter of each word
+        center = lower(center);
+        center = regexprep(center, '(\<\w)', '${upper($1)}');
+        arcs = [arcs, struct(...
+            'endTime', endTimes{j}, ...
+                            'center', num2str(center), ...
+                            'trajectory', struct( ...
+                                'type', 'Spice', ...
+                                'target', num2str(arcs_id(1)), ...
+                                'center', num2str(center) ...
+                            ))];
+    end
+    % Create the spacecraft item structure
+    spacecraftItem = struct( ...
+        'class', 'spacecraft', ...
+        'name', arcs_name(1), ...  % Name of the spacecraft
+        'startTime', startTimes, ...
+        'arcs', {arcs},...
+        'label', struct( ...
+            'color', color ...  % Color for the spacecraft label
+        ), ...
+        'trajectoryPlot', struct( ...
+            'color', color, ...
+            'lineWidth', 4, ...
+            'sampleCount', 2000, ...
+            'lead', '1 s', ...
+            'duration', duration, ...
+            'fade', fade ...
+        ) ...
+    );
+end
+
 function [spacecraftItem, center] = createSpacecraftItem(sat, startTime, endTime, color, duration, fade)
     % createSpacecraftItem - Creates a spacecraft item for the JSON structure
     %
@@ -707,6 +878,7 @@ function [spacecraftItem, center] = createSpacecraftItem(sat, startTime, endTime
     %   center         - (string) The center of the spacecraft's trajectory
 
     % Get the center of the spacecraft from SPICE
+   
     [center, found] = cspice_bodc2n(sat.CENTER);  % Get center body name
     if ~found
         error('Center not found');
@@ -893,5 +1065,3 @@ function input_check(varargin)
         end
     end
 end
-
-%
