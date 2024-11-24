@@ -40,16 +40,17 @@ Make sure the following files are available in the specified subdirectories:
 1. **Time Constants Kernel (LSK)**:  
    Download from [LSK Kernels](https://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/)  
    Place in the `/lsk` folder. Windows users should use the `.pc` extension.
+   example: latest_leapseconds.tls
 
-2. **Planetary SPK Kernel**:  
+3. **Planetary SPK Kernel**:  
    Download from [SPK Kernels](https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/)  
    Place in the `/spk/planets` folder.
-
-3. **Binary PCK Kernel**:  
+   example: example: de435.bsp (it's not on Git)
+4. **Binary PCK Kernel**:  
    Download from [PCK Kernels](https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/)  
-   Place in the `/pck` folder.
+   Place in the `/pck` folder. (example: earth_latest_high_prec.bpc)
 
-   **ATTENTION!
+ATTENTION!
 All SPICE kernels used must also be added to the spice folder within Cosmographia's data directory. Additionally, they must be listed in the spice_kernels.json file. Ensure you locate the Cosmographia data directory, add the required SPICE kernels, and update the spice_kernels.json file accordingly.
 ---
 
