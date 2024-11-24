@@ -56,6 +56,7 @@ All SPICE kernels used must also be added to the spice folder within Cosmographi
 
 ## Usage
 ### Function Syntax
+cosmographia_plot.m and the folders spk/, pck/, lsk/ must be in the same folder!
 ```matlab
 cosmographia_plot(mission_name, sat1, sat2, ...)
 ```
