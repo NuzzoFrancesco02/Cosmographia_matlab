@@ -768,6 +768,10 @@ function fields_check(varargin)
             close all;
             error(['id field of sat #', num2str(j), ' is not an integer!']);
         end
+        if id >= 0
+            close all;
+            error(['id field of sat #', num2str(j), ' must be negative!']);
+        end
 
         % Check if the 'segid' field is a string or character array
         segid = varargin{1}{j}.segid;
