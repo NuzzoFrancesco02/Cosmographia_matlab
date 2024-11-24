@@ -105,7 +105,7 @@ function cosmographia_plot(mission_name, varargin)
     total_steps = 7; % Total steps in the process
 
     % Step 1: Create folder
-    waitbar(1 / total_steps, h, "Creating folder " + mission_name + "...");
+    waitbar(1 / total_steps, h, "Creating folder '" + strrep(mission_name, '_', '\_') + "'...");
     
     % Check if the folder already exists
     if isfolder(mission_name)
