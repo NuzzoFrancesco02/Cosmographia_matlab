@@ -50,8 +50,11 @@ Make sure the following files are available in the specified subdirectories:
    Download from [PCK Kernels](https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/)  
    Place in the `/pck` folder. (example: earth_latest_high_prec.bpc)
 
-## ATTENTION!
-      All SPICE kernels used must also be added to the spice folder within Cosmographia's data directory. Additionally, they must be listed in the spice_kernels.json file. Ensure       you locate the Cosmographia data directory, add the required SPICE kernels, and update the spice_kernels.json file accordingly.
+### ATTENTION
+All SPICE kernels used must also be added to the spice folder within Cosmographia's data directory. 
+Additionally, they must be listed in the spice_kernels.json file. Ensure you locate the Cosmographia data directory, 
+add the required SPICE kernels, and update the spice_kernels.json file accordingly.
+
 ---
 
 ## Usage
