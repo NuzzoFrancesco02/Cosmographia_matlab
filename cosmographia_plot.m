@@ -96,6 +96,13 @@ function cosmographia_plot(mission_name, varargin)
     end
     % Input check function 
     input_check(varargin);
+
+    for j = 1 : length(varargin)
+        duplicates = find(diff(varargin{j}.t) == 0);
+        varargin{j}.t(duplicates+1) = [];
+        varargin{j}.r(duplicates+1,:) = [];
+        varargin{j}.v(duplicates+1,:) = [];
+    end
     
     % Field check function 
     fields_check(varargin);
